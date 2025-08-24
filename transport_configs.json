@@ -1,0 +1,146 @@
+{
+  "transports": {
+    "stdio": {
+      "description": "Standard input/output transport for local development",
+      "status": "fully_implemented",
+      "usage": "python server.py",
+      "configuration": {
+        "command": "python",
+        "args": ["server.py"],
+        "env": {
+          "MOLMIM_BASE_URL": "http://localhost:8000"
+        }
+      },
+      "docker_usage": "docker run -e MOLMIM_BASE_URL=http://localhost:8000 molmim-mcp python server.py",
+      "pros": [
+        "Simple setup",
+        "No network configuration required",
+        "Fast communication",
+        "Suitable for local development"
+      ],
+      "cons": [
+        "Single client only",
+        "Not suitable for network deployment"
+      ]
+    },
+    "sse": {
+      "description": "Server-Sent Events transport for web-based clients",
+      "status": "fully_implemented",
+      "usage": "python server.py --transport sse --host 0.0.0.0 --port 8002",
+      "configuration": {
+        "command": "python",
+        "args": ["server.py", "--transport", "sse", "--host", "0.0.0.0", "--port", "8002"],
+        "env": {
+          "MOLMIM_BASE_URL": "http://localhost:8000"
+        }
+      },
+      "docker_usage": "docker run -p 8002:8002 -e MCP_TRANSPORT=sse -e MCP_PORT=8002 -e MOLMIM_BASE_URL=http://localhost:8000 molmim-mcp",
+      "pros": [
+        "Web-compatible",
+        "Real-time communication",
+        "Multiple clients supported",
+        "Network deployment ready"
+      ],
+      "cons": [
+        "Requires network configuration",
+        "More complex setup than stdio"
+      ]
+    },
+    "http-streamable": {
+      "description": "HTTP Streamable transport for production deployment",
+      "status": "fully_implemented",
+      "usage": "python server.py --transport http-streamable --host 0.0.0.0 --port 8001",
+      "configuration": {
+        "command": "python",
+        "args": ["server.py", "--transport", "http-streamable", "--host", "0.0.0.0", "--port", "8001"],
+        "env": {
+          "MOLMIM_BASE_URL": "http://localhost:8000"
+        }
+      },
+      "docker_usage": "docker run -p 8001:8001 -e MOLMIM_BASE_URL=http://localhost:8000 molmim-mcp",
+      "pros": [
+        "Production-ready",
+        "Multiple clients supported",
+        "Network deployment ready",
+        "Full HTTP Streamable support"
+      ],
+      "cons": [
+        "Requires network configuration",
+        "More complex setup than stdio"
+      ]
+    }
+  },
+  "deployment": {
+    "docker": {
+      "description": "Containerized deployment using Docker with entrypoint script",
+      "requirements": [
+        "Docker installed",
+        "MolMIM server accessible (requires NVIDIA NIM enterprise subscription or custom implementation)"
+      ],
+      "docker_usage": {
+        "stdio": "docker run -e MOLMIM_BASE_URL=http://your-server:8000 molmim-mcp",
+        "http-streamable": "docker run -p 8001:8001 -e MOLMIM_BASE_URL=http://your-server:8000 molmim-mcp",
+        "sse": "docker run -p 8002:8002 -e MCP_TRANSPORT=sse -e MCP_PORT=8002 -e MOLMIM_BASE_URL=http://your-server:8000 molmim-mcp",
+        "verbose": "docker run -p 8001:8001 -e MOLMIM_BASE_URL=http://your-server:8000 -e VERBOSE=true molmim-mcp"
+      },
+      "entrypoint_features": [
+        "Automatic environment variable validation",
+        "Dynamic command argument building",
+        "Support for all transport types",
+        "Verbose logging support",
+        "Custom command override capability"
+      ]
+    },
+    "docker_compose": {
+      "description": "Orchestrated deployment with docker-compose",
+      "requirements": [
+        "Docker Compose installed",
+        "MolMIM server (NVIDIA NIM enterprise subscription required for official image)"
+      ],
+      "usage": "docker-compose up -d"
+    }
+  },
+  "environment_variables": {
+    "MOLMIM_BASE_URL": {
+      "description": "URL of the MolMIM server",
+      "default": "http://localhost:8000",
+      "required": true,
+      "required_for": ["docker", "production"],
+      "examples": [
+        "http://localhost:8000",
+        "http://molmim-server:8000",
+        "https://your-molmim-instance.com"
+      ]
+    },
+    "MCP_TRANSPORT": {
+      "description": "MCP transport mechanism",
+      "default": "stdio",
+      "required": false,
+      "options": ["stdio", "http-streamable", "sse"]
+    },
+    "MCP_HOST": {
+      "description": "Host for HTTP Streamable/SSE transport",
+      "default": "127.0.0.1",
+      "required": false,
+      "examples": ["127.0.0.1", "0.0.0.0", "localhost"]
+    },
+    "MCP_PORT": {
+      "description": "Port for HTTP Streamable/SSE transport",
+      "default": "8001",
+      "required": false,
+      "examples": ["8001", "8002", "3000"]
+    },
+    "PYTHONUNBUFFERED": {
+      "description": "Enable immediate log output",
+      "default": "1",
+      "required": false,
+      "examples": ["1", "true"]
+    },
+    "VERBOSE": {
+      "description": "Enable verbose logging",
+      "default": null,
+      "required": false,
+      "examples": ["true", "1", "false", "0"]
+    }
+  }
+}

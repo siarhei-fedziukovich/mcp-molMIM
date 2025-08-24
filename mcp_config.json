@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "molmim": {
+      "command": "python",
+      "args": ["-m", "molmim_mcp.server"],
+      "env": {
+        "MOLMIM_BASE_URL": "http://localhost:8000"
+      }
+    }
+  }
+}

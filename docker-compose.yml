@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  molmim-mcp:
+    build: .
+    container_name: molmim-mcp-server
+    ports:
+      - "8001:8001"  # HTTP Streamable transport
+      - "8002:8002"  # SSE transport (if implemented)
+    environment:
+      - MCP_TRANSPORT=http-streamable
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8001
+      - MOLMIM_BASE_URL=${MOLMIM_BASE_URL:-http://molmim-server:8000}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - molmim-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - molmim-server
+
+  # Optional: MolMIM server (if running locally)
+  # Note: nvidia/molmim:latest requires NVIDIA NIM technology and enterprise subscription
+  # You may need to replace this with your own MolMIM server implementation
+  molmim-server:
+    image: nvidia/molmim:latest  # Replace with actual MolMIM image
+    container_name: molmim-server
+    ports:
+      - "8000:8000"
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - molmim-data:/data
+    restart: unless-stopped
+    networks:
+      - molmim-network
+    profiles:
+      - with-molmim
+
+networks:
+  molmim-network:
+    driver: bridge
+
+volumes:
+  molmim-data:
+    driver: local
