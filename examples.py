@@ -162,6 +162,8 @@ async def example_molecular_interpolation():
     print("The interpolation creates a smooth transition in chemical space.")
     print("Each end of the spectrum is closer to the respective starting molecule.")
     print("Returns both a PNG visualization and JSON data with all molecules.")
+    print("With stdio transport: Returns native MCP image content type + JSON data.")
+    print("With HTTP/SSE transport: Returns base64-encoded image in JSON.")
     print("Useful for drug discovery and chemical space exploration.")
 
 async def example_workflow():

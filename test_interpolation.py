@@ -131,7 +131,8 @@ def test_molecular_interpolation():
             "input_molecules": {
                 "smiles1": smiles1_canon,
                 "smiles2": smiles2_canon
-            }
+            },
+            "note": "This test demonstrates the core functionality. MCP stdio transport returns native image content type."
         }
         
         # Save JSON result

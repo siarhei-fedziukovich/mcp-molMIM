@@ -81,7 +81,8 @@ Interpolate between two molecules by manipulating MolMIM hidden states. Generate
 - `image_size` (integer, 200-500, default: 300): Size of each molecule image in pixels
 
 **Returns:**
-- JSON with molecules, legends, interpolation count, base64-encoded PNG image, and input molecules
+- **stdio transport**: JSON data + native MCP image content type (PNG)
+- **HTTP/SSE transports**: JSON with molecules, legends, interpolation count, base64-encoded PNG image, and input molecules
 
 ## 🛠️ Installation
 
@@ -153,7 +154,7 @@ The MolMIM MCP server supports multiple transport mechanisms for different deplo
 
 ### 1. stdio Transport (Default)
 
-**Best for:** Local development, single client usage
+**Best for:** Local development, single client usage, native MCP image content types
 
 ```bash
 # Run with stdio transport

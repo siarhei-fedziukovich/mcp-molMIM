@@ -31,6 +31,7 @@ from mcp.types import (
     ListToolsResult,
     Tool,
     TextContent,
+    ImageContent,
     LoggingLevel,
 )
 
@@ -461,15 +462,20 @@ class MolMIMServer:
                 "molecules": molecules,
                 "legends": legends,
                 "interpolation_count": num_interpolations,
-                "image_base64": img_base64,
                 "input_molecules": {
                     "smiles1": smiles1_canon,
                     "smiles2": smiles2_canon
                 }
             }
             
+            # Convert base64 to bytes for image content
+            img_bytes = base64.b64decode(img_base64)
+            
             return CallToolResult(
-                content=[TextContent(type="text", text=json.dumps(result, indent=2))]
+                content=[
+                    TextContent(type="text", text=json.dumps(result, indent=2)),
+                    ImageContent(type="image", mime_type="image/png", data=img_bytes)
+                ]
             )
             
         except Exception as e:
@@ -674,7 +680,8 @@ class MolMIMFastServer:
                     "input_molecules": {
                         "smiles1": smiles1_canon,
                         "smiles2": smiles2_canon
-                    }
+                    },
+                    "note": "For HTTP/SSE transports, image is returned as base64 in JSON. Use stdio transport for native MCP image content type."
                 }
                 
                 return json.dumps(result, indent=2)
