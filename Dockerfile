@@ -1,5 +1,5 @@
 # MolMIM MCP Server Dockerfile
-FROM python:3.10-slim
+FROM python:3.10-slim-bullseye
 
 # Set working directory
 WORKDIR /app
