@@ -10,8 +10,14 @@ import json
 import logging
 import os
 import sys
+import base64
+import io
 from typing import Any, Dict, List, Optional, Sequence
 import requests
+import numpy as np
+from rdkit import Chem
+from rdkit.Chem import Draw
+import matplotlib.pyplot as plt
 
 from mcp.server import Server
 from mcp.server.models import InitializationOptions
@@ -212,6 +218,45 @@ class MolMIMServer:
                         },
                         "required": ["smi"]
                     }
+                ),
+                Tool(
+                    name="molmim_interpolate",
+                    description="Interpolate between two molecules by manipulating MolMIM hidden states. Generates intermediate molecules that share properties of each parent molecule, with either end of the spectrum being closer to respective starting molecule. Returns both a PNG visualization and JSON data.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "smiles1": {
+                                "type": "string",
+                                "description": "First molecule in SMILES format"
+                            },
+                            "smiles2": {
+                                "type": "string",
+                                "description": "Second molecule in SMILES format"
+                            },
+                            "num_interpolations": {
+                                "type": "integer",
+                                "minimum": 5,
+                                "maximum": 100,
+                                "default": 50,
+                                "description": "Number of interpolated molecules to generate between the two input molecules"
+                            },
+                            "mols_per_row": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10,
+                                "default": 4,
+                                "description": "Number of molecules per row in the visualization grid"
+                            },
+                            "image_size": {
+                                "type": "integer",
+                                "minimum": 200,
+                                "maximum": 500,
+                                "default": 300,
+                                "description": "Size of each molecule image in pixels"
+                            }
+                        },
+                        "required": ["smiles1", "smiles2"]
+                    }
                 )
             ]
             return ListToolsResult(tools=tools)
@@ -232,6 +277,8 @@ class MolMIMServer:
                     return await self._call_sampling(arguments)
                 elif name == "molmim_generate":
                     return await self._call_generate(arguments)
+                elif name == "molmim_interpolate":
+                    return await self._call_interpolate(arguments)
                 else:
                     raise ValueError(f"Unknown tool: {name}")
             except Exception as e:
@@ -332,6 +379,104 @@ class MolMIMServer:
         return CallToolResult(
             content=[TextContent(type="text", text=json.dumps(result, indent=2))]
         )
+
+    async def _call_interpolate(self, arguments: Dict[str, Any]) -> CallToolResult:
+        """Call the molecular interpolation functionality"""
+        try:
+            smiles1 = arguments["smiles1"]
+            smiles2 = arguments["smiles2"]
+            num_interpolations = arguments.get("num_interpolations", 50)
+            mols_per_row = arguments.get("mols_per_row", 4)
+            image_size = arguments.get("image_size", 300)
+            
+            # Canonicalize SMILES strings
+            smiles1_canon = Chem.CanonSmiles(smiles1)
+            smiles2_canon = Chem.CanonSmiles(smiles2)
+            
+            logger.info(f"Interpolating between molecules: {smiles1_canon} and {smiles2_canon}")
+            
+            # Step 1: Get hidden states for both molecules
+            url = f"{MOLMIM_BASE_URL}/hidden"
+            data = {"sequences": [smiles1_canon, smiles2_canon]}
+            
+            response = requests.post(url, json=data, headers={"Content-Type": "application/json"})
+            response.raise_for_status()
+            
+            hiddens_response = response.json()
+            hiddens = hiddens_response["hiddens"]
+            
+            # Convert to numpy array and extract the two hidden state vectors
+            hiddens_array = np.array(hiddens)
+            hiddens_array = np.squeeze(hiddens_array)
+            row1 = hiddens_array[0]  # First molecule
+            row2 = hiddens_array[1]  # Second molecule
+            
+            # Step 2: Generate interpolated hidden states
+            interpolated_rows = []
+            for i in range(num_interpolations):
+                t = i / (num_interpolations - 1)
+                interpolated_row = (1 - t) * row1 + t * row2
+                interpolated_rows.append(interpolated_row)
+            
+            # Convert interpolated vectors to array format expected by decoder
+            interpolated_hiddens = np.expand_dims(np.array(interpolated_rows), axis=1)
+            
+            # Step 3: Decode interpolated hidden states to SMILES
+            url = f"{MOLMIM_BASE_URL}/decode"
+            interpolated_hiddens_json = {
+                "hiddens": interpolated_hiddens.tolist(),
+                "mask": [[True] for _ in range(num_interpolations)]
+            }
+            
+            response = requests.post(url, json=interpolated_hiddens_json, headers={"Content-Type": "application/json"})
+            response.raise_for_status()
+            
+            decode_response = response.json()
+            generated_molecules = decode_response['generated']
+            
+            # Step 4: Deduplicate and create final molecule list
+            molecules = [smiles1_canon] + list(dict.fromkeys(generated_molecules)) + [smiles2_canon]
+            legends = ['Molecule 1'] + [f'Interpolated #{i+1}' for i in range(len(molecules) - 2)] + ['Molecule 2']
+            
+            # Step 5: Create visualization
+            mols = [Chem.MolFromSmiles(smile, sanitize=False) for smile in molecules]
+            
+            # Create the grid image
+            img = Draw.MolsToGridImage(
+                mols,
+                legends=legends,
+                molsPerRow=mols_per_row,
+                subImgSize=(image_size, image_size),
+                returnPNG=True
+            )
+            
+            # Convert image to base64
+            img_buffer = io.BytesIO()
+            img.save(img_buffer, format='PNG')
+            img_buffer.seek(0)
+            img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+            
+            # Step 6: Prepare result
+            result = {
+                "molecules": molecules,
+                "legends": legends,
+                "interpolation_count": num_interpolations,
+                "image_base64": img_base64,
+                "input_molecules": {
+                    "smiles1": smiles1_canon,
+                    "smiles2": smiles2_canon
+                }
+            }
+            
+            return CallToolResult(
+                content=[TextContent(type="text", text=json.dumps(result, indent=2))]
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in molecular interpolation: {str(e)}")
+            return CallToolResult(
+                content=[TextContent(type="text", text=json.dumps({"error": str(e)}, indent=2))]
+            )
 
 class MolMIMFastServer:
     """MolMIM MCP Server implementation using FastMCP for HTTP/SSE transports"""
@@ -442,6 +587,101 @@ class MolMIMFastServer:
             
             result = response.json()
             return json.dumps(result, indent=2)
+
+        @self.mcp.tool()
+        async def molmim_interpolate(
+            smiles1: str,
+            smiles2: str,
+            num_interpolations: int = 50,
+            mols_per_row: int = 4,
+            image_size: int = 300
+        ) -> str:
+            """Interpolate between two molecules by manipulating MolMIM hidden states."""
+            try:
+                # Canonicalize SMILES strings
+                smiles1_canon = Chem.CanonSmiles(smiles1)
+                smiles2_canon = Chem.CanonSmiles(smiles2)
+                
+                logger.info(f"Interpolating between molecules: {smiles1_canon} and {smiles2_canon}")
+                
+                # Step 1: Get hidden states for both molecules
+                url = f"{MOLMIM_BASE_URL}/hidden"
+                data = {"sequences": [smiles1_canon, smiles2_canon]}
+                
+                response = requests.post(url, json=data, headers={"Content-Type": "application/json"})
+                response.raise_for_status()
+                
+                hiddens_response = response.json()
+                hiddens = hiddens_response["hiddens"]
+                
+                # Convert to numpy array and extract the two hidden state vectors
+                hiddens_array = np.array(hiddens)
+                hiddens_array = np.squeeze(hiddens_array)
+                row1 = hiddens_array[0]  # First molecule
+                row2 = hiddens_array[1]  # Second molecule
+                
+                # Step 2: Generate interpolated hidden states
+                interpolated_rows = []
+                for i in range(num_interpolations):
+                    t = i / (num_interpolations - 1)
+                    interpolated_row = (1 - t) * row1 + t * row2
+                    interpolated_rows.append(interpolated_row)
+                
+                # Convert interpolated vectors to array format expected by decoder
+                interpolated_hiddens = np.expand_dims(np.array(interpolated_rows), axis=1)
+                
+                # Step 3: Decode interpolated hidden states to SMILES
+                url = f"{MOLMIM_BASE_URL}/decode"
+                interpolated_hiddens_json = {
+                    "hiddens": interpolated_hiddens.tolist(),
+                    "mask": [[True] for _ in range(num_interpolations)]
+                }
+                
+                response = requests.post(url, json=interpolated_hiddens_json, headers={"Content-Type": "application/json"})
+                response.raise_for_status()
+                
+                decode_response = response.json()
+                generated_molecules = decode_response['generated']
+                
+                # Step 4: Deduplicate and create final molecule list
+                molecules = [smiles1_canon] + list(dict.fromkeys(generated_molecules)) + [smiles2_canon]
+                legends = ['Molecule 1'] + [f'Interpolated #{i+1}' for i in range(len(molecules) - 2)] + ['Molecule 2']
+                
+                # Step 5: Create visualization
+                mols = [Chem.MolFromSmiles(smile, sanitize=False) for smile in molecules]
+                
+                # Create the grid image
+                img = Draw.MolsToGridImage(
+                    mols,
+                    legends=legends,
+                    molsPerRow=mols_per_row,
+                    subImgSize=(image_size, image_size),
+                    returnPNG=True
+                )
+                
+                # Convert image to base64
+                img_buffer = io.BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
+                img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+                
+                # Step 6: Prepare result
+                result = {
+                    "molecules": molecules,
+                    "legends": legends,
+                    "interpolation_count": num_interpolations,
+                    "image_base64": img_base64,
+                    "input_molecules": {
+                        "smiles1": smiles1_canon,
+                        "smiles2": smiles2_canon
+                    }
+                }
+                
+                return json.dumps(result, indent=2)
+                
+            except Exception as e:
+                logger.error(f"Error in molecular interpolation: {str(e)}")
+                return json.dumps({"error": str(e)}, indent=2)
 
 async def run_stdio_server(molmim_server: MolMIMServer):
     """Run the MCP server using stdio transport"""

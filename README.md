@@ -70,6 +70,19 @@ Generate novel molecules with property optimization.
 - `iterations` (integer, 1-1000, default: 10): Number of optimization iterations
 - `scaled_radius` (number, 0.0-2.0, default: 1.0): Scaled radius for sampling
 
+### 6. `molmim_interpolate`
+Interpolate between two molecules by manipulating MolMIM hidden states. Generates intermediate molecules that share properties of each parent molecule, with either end of the spectrum being closer to respective starting molecule.
+
+**Parameters:**
+- `smiles1` (string): First molecule in SMILES format
+- `smiles2` (string): Second molecule in SMILES format
+- `num_interpolations` (integer, 5-100, default: 50): Number of interpolated molecules to generate
+- `mols_per_row` (integer, 1-10, default: 4): Number of molecules per row in visualization grid
+- `image_size` (integer, 200-500, default: 300): Size of each molecule image in pixels
+
+**Returns:**
+- JSON with molecules, legends, interpolation count, base64-encoded PNG image, and input molecules
+
 ## 🛠️ Installation
 
 ### From Source
@@ -342,6 +355,19 @@ sampling_request = {
 }
 ```
 
+### Interpolate Between Molecules
+
+```python
+# Example: Interpolate between caffeine and aspirin
+interpolation_request = {
+    "smiles1": "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",  # Caffeine
+    "smiles2": "CC(=O)OC1=CC=CC=C1C(=O)O",      # Aspirin
+    "num_interpolations": 20,
+    "mols_per_row": 5,
+    "image_size": 250
+}
+```
+
 ## 🔧 Integration with DIAL
 
 The MolMIM MCP server can be integrated with DIAL QuickApps using the MCP toolset configuration:
@@ -355,13 +381,14 @@ The MolMIM MCP server can be integrated with DIAL QuickApps using the MCP toolse
       "mcp_server_info": {
         "command": "molmim-mcp"
       },
-      "allowed_tools": [
-        "molmim_embedding",
-        "molmim_hidden", 
-        "molmim_decode",
-        "molmim_sampling",
-        "molmim_generate"
-      ]
+             "allowed_tools": [
+         "molmim_embedding",
+         "molmim_hidden", 
+         "molmim_decode",
+         "molmim_sampling",
+         "molmim_generate",
+         "molmim_interpolate"
+       ]
     }
   ]
 }

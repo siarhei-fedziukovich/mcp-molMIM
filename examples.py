@@ -140,6 +140,30 @@ async def example_latent_space_sampling():
     print("Scaled radius of 0.6 provides moderate exploration distance.")
     print("Useful for finding structurally similar compounds.")
 
+async def example_molecular_interpolation():
+    """Example: Interpolate between two molecules"""
+    print("\n🔄 Example: Molecular Interpolation")
+    print("=" * 50)
+    
+    # Example request for molecular interpolation
+    request = {
+        "smiles1": EXAMPLE_MOLECULES["caffeine"],
+        "smiles2": EXAMPLE_MOLECULES["aspirin"],
+        "num_interpolations": 20,
+        "mols_per_row": 5,
+        "image_size": 250
+    }
+    
+    print(f"Molecule 1: {EXAMPLE_MOLECULES['caffeine']} (Caffeine)")
+    print(f"Molecule 2: {EXAMPLE_MOLECULES['aspirin']} (Aspirin)")
+    print(f"Request: {json.dumps(request, indent=2)}")
+    print()
+    print("This would generate 20 interpolated molecules between caffeine and aspirin.")
+    print("The interpolation creates a smooth transition in chemical space.")
+    print("Each end of the spectrum is closer to the respective starting molecule.")
+    print("Returns both a PNG visualization and JSON data with all molecules.")
+    print("Useful for drug discovery and chemical space exploration.")
+
 async def example_workflow():
     """Example: Complete workflow combining multiple tools"""
     print("\n🔄 Example: Complete Workflow")
@@ -203,6 +227,7 @@ def main():
     asyncio.run(example_random_sampling())
     asyncio.run(example_get_embeddings())
     asyncio.run(example_latent_space_sampling())
+    asyncio.run(example_molecular_interpolation())
     asyncio.run(example_workflow())
     
     print("=" * 60)
