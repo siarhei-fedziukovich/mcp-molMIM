@@ -252,7 +252,7 @@ python server.py
 
 ### Docker Deployment
 
-The MolMIM MCP server can be deployed using Docker with full environment variable support:
+The MolMIM MCP server can be deployed using Docker with full environment variable support. The Docker image includes X11 libraries and xvfb for molecular visualization in headless environments:
 
 ```bash
 # Build the Docker image
@@ -445,6 +445,7 @@ The server implements the [Model Context Protocol (MCP)](https://modelcontextpro
 1. **Connection Error**: Ensure MolMIM server is running and accessible
 2. **Import Error**: Install all required dependencies from `requirements.txt`
 3. **Permission Error**: Ensure Python has execute permissions for the server script
+4. **X11/Visualization Error**: The Docker image includes X11 libraries and xvfb for headless visualization. If you encounter `libXrender.so.1` errors, ensure you're using the latest Docker image.
 
 ### Debug Mode
 

@@ -27,6 +27,18 @@ export MCP_HOST=${MCP_HOST:-127.0.0.1}
 export MCP_PORT=${MCP_PORT:-8001}
 export PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
 
+# Set up virtual display for headless environments (for RDKit visualization)
+export DISPLAY=${DISPLAY:-:99}
+if [ "$DISPLAY" = ":99" ]; then
+    echo "Setting up virtual display for headless environment..."
+    # Start Xvfb in the background
+    Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+    XVFB_PID=$!
+    echo "Started Xvfb with PID: $XVFB_PID"
+    # Give Xvfb a moment to start
+    sleep 1
+fi
+
 # Build command arguments based on transport
 CMD_ARGS=("python" "server.py")
 

@@ -17,6 +17,9 @@ import requests
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import Draw
+import matplotlib
+# Set matplotlib to use a non-interactive backend for headless environments
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from mcp.server import Server
@@ -440,22 +443,32 @@ class MolMIMServer:
             legends = ['Molecule 1'] + [f'Interpolated #{i+1}' for i in range(len(molecules) - 2)] + ['Molecule 2']
             
             # Step 5: Create visualization
-            mols = [Chem.MolFromSmiles(smile, sanitize=False) for smile in molecules]
-            
-            # Create the grid image
-            img = Draw.MolsToGridImage(
-                mols,
-                legends=legends,
-                molsPerRow=mols_per_row,
-                subImgSize=(image_size, image_size),
-                returnPNG=True
-            )
+            try:
+                mols = [Chem.MolFromSmiles(smile, sanitize=False) for smile in molecules]
+                
+                # Create the grid image
+                img = Draw.MolsToGridImage(
+                    mols,
+                    legends=legends,
+                    molsPerRow=mols_per_row,
+                    subImgSize=(image_size, image_size),
+                    returnPNG=True
+                )
+            except Exception as viz_error:
+                logger.warning(f"Visualization failed: {viz_error}")
+                logger.warning("Creating fallback text-based representation")
+                # Create a simple text representation as fallback
+                img = None
+                img_base64 = ""
             
             # Convert image to base64
-            img_buffer = io.BytesIO()
-            img.save(img_buffer, format='PNG')
-            img_buffer.seek(0)
-            img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+            if img is not None:
+                img_buffer = io.BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
+                img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+            else:
+                img_base64 = ""
             
             # Step 6: Prepare result
             result = {
@@ -468,15 +481,22 @@ class MolMIMServer:
                 }
             }
             
-            # Convert base64 to bytes for image content
-            img_bytes = base64.b64decode(img_base64)
-            
-            return CallToolResult(
-                content=[
-                    TextContent(type="text", text=json.dumps(result, indent=2)),
-                    ImageContent(type="image", mime_type="image/png", data=img_bytes)
-                ]
-            )
+            # Return result with or without image
+            if img is not None and img_base64:
+                # Convert base64 to bytes for image content
+                img_bytes = base64.b64decode(img_base64)
+                return CallToolResult(
+                    content=[
+                        TextContent(type="text", text=json.dumps(result, indent=2)),
+                        ImageContent(type="image", mime_type="image/png", data=img_bytes)
+                    ]
+                )
+            else:
+                # Return only text content if image generation failed
+                result["visualization_error"] = "Image generation failed, returning text data only"
+                return CallToolResult(
+                    content=[TextContent(type="text", text=json.dumps(result, indent=2))]
+                )
             
         except Exception as e:
             logger.error(f"Error in molecular interpolation: {str(e)}")
@@ -654,22 +674,32 @@ class MolMIMFastServer:
                 legends = ['Molecule 1'] + [f'Interpolated #{i+1}' for i in range(len(molecules) - 2)] + ['Molecule 2']
                 
                 # Step 5: Create visualization
-                mols = [Chem.MolFromSmiles(smile, sanitize=False) for smile in molecules]
-                
-                # Create the grid image
-                img = Draw.MolsToGridImage(
-                    mols,
-                    legends=legends,
-                    molsPerRow=mols_per_row,
-                    subImgSize=(image_size, image_size),
-                    returnPNG=True
-                )
+                try:
+                    mols = [Chem.MolFromSmiles(smile, sanitize=False) for smile in molecules]
+                    
+                    # Create the grid image
+                    img = Draw.MolsToGridImage(
+                        mols,
+                        legends=legends,
+                        molsPerRow=mols_per_row,
+                        subImgSize=(image_size, image_size),
+                        returnPNG=True
+                    )
+                except Exception as viz_error:
+                    logger.warning(f"Visualization failed: {viz_error}")
+                    logger.warning("Creating fallback text-based representation")
+                    # Create a simple text representation as fallback
+                    img = None
+                    img_base64 = ""
                 
                 # Convert image to base64
-                img_buffer = io.BytesIO()
-                img.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-                img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+                if img is not None:
+                    img_buffer = io.BytesIO()
+                    img.save(img_buffer, format='PNG')
+                    img_buffer.seek(0)
+                    img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+                else:
+                    img_base64 = ""
                 
                 # Step 6: Prepare result
                 result = {
@@ -683,6 +713,9 @@ class MolMIMFastServer:
                     },
                     "note": "For HTTP/SSE transports, image is returned as base64 in JSON. Use stdio transport for native MCP image content type."
                 }
+                
+                if img is None:
+                    result["visualization_error"] = "Image generation failed, returning text data only"
                 
                 return json.dumps(result, indent=2)
                 
